@@ -1,7 +1,7 @@
 import torch
 from torch.nn import Module, Parameter
 
-class Embedings(Module):
+class Embedding(Module):
     def __init__(self, vocab_size, embedding_dim):
         super().__init__()
         self.weight = Parameter(torch.empty(vocab_size, embedding_dim))
