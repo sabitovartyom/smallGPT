@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Маленькая LLM с нуля — архитектура и план MVP</title>
+  <style>
+    :root { --bg:#f5f4ef; --paper:#fff; --ink:#172d35; --muted:#53686f; --line:#d8e1df; --accent:#126e60; --soft:#e5f2ed; --blue:#e9f0fb; --orange:#fff0d9; --mono:ui-monospace,SFMono-Regular,Consolas,monospace; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; scroll-padding-top:24px; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    a { color:var(--accent); text-underline-offset:3px; }
+    a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible { outline:3px solid #bd6c15; outline-offset:4px; }
+    .layout { max-width:1440px; margin:auto; display:grid; grid-template-columns:240px minmax(0,1fr); gap:48px; padding:40px 40px 80px; }
+    aside { position:sticky; top:32px; align-self:start; }
+    .brand { font-weight:800; font-size:20px; letter-spacing:-.5px; }
+    .brand span { color:var(--accent); }
+    .eyebrow { color:var(--accent); font:700 12px/1.5 var(--mono); letter-spacing:1.6px; text-transform:uppercase; }
+    nav { margin-top:32px; display:grid; gap:5px; }
+    nav a { padding:8px 12px; border-radius:8px; text-decoration:none; color:var(--muted); font-size:14px; }
+    nav a:hover { background:var(--soft); color:var(--accent); }
+    .sidebar-note { font-size:12px; color:var(--muted); margin:28px 12px; }
+    main { min-width:0; }
+    header { padding:8px 0 34px; }
+    h1 { font-size:clamp(34px,5vw,60px); line-height:1.1; letter-spacing:-2px; margin:18px 0 24px; max-width:850px; }
+    h2 { font-size:28px; line-height:1.25; letter-spacing:-.6px; margin:0 0 18px; }
+    h3 { font-size:19px; line-height:1.4; margin:24px 0 10px; }
+    p { margin:0 0 16px; }
+    .lead { font-size:19px; color:var(--muted); max-width:800px; }
+    .badges { display:flex; flex-wrap:wrap; gap:8px; margin-top:24px; }
+    .badge { border:1px solid var(--line); border-radius:30px; padding:5px 12px; font-size:12px; background:var(--paper); }
+    section { margin:0 0 30px; padding:30px; border:1px solid var(--line); background:var(--paper); border-radius:16px; }
+    .section-label { font:12px var(--mono); color:var(--accent); margin-bottom:12px; }
+    .muted { color:var(--muted); }
+    .small { font-size:13px; }
+    code { font-family:var(--mono); font-size:.87em; background:#eef2f1; padding:2px 5px; border-radius:4px; overflow-wrap:anywhere; }
+    pre { background:#172d35; color:#e7f4ee; border-radius:10px; padding:20px; overflow:auto; font:13px/1.7 var(--mono); tab-size:4; }
+    pre code { font-size:inherit; background:none; padding:0; color:inherit; overflow-wrap:normal; }
+    ul,ol { padding-left:24px; margin:12px 0 20px; }
+    li { margin:7px 0; }
+    .callout { border-left:3px solid var(--accent); padding:16px 20px; background:var(--soft); border-radius:0 8px 8px 0; margin:20px 0; }
+    .callout p:last-child { margin:0; }
+    .warm { background:var(--orange); border-color:#bd6c15; }
+    .table-wrap { overflow:auto; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { text-align:left; padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { color:var(--muted); font-size:12px; background:#f7f9f8; }
+    .flow { display:grid; grid-template-columns:1fr 90px; gap:0 12px; max-width:650px; margin:28px auto; }
+    .node { display:block; padding:13px 18px; border:1px solid var(--line); border-radius:10px; background:#f8faf9; text-decoration:none; color:var(--ink); }
+    .node:hover { border-color:var(--accent); }
+    .node strong { display:block; font-size:15px; }
+    .node span { font:12px var(--mono); color:var(--muted); }
+    .node.green { background:var(--soft); border-color:#a6cebd; }
+    .node.blue { background:var(--blue); border-color:#b8cee9; }
+    .shape { display:flex; align-items:center; font:12px/1.5 var(--mono); color:var(--muted); }
+    .arrow { grid-column:1 / -1; text-align:center; color:#77948c; height:28px; }
+    .cols { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+    .card { padding:18px; background:#f7f9f8; border-radius:10px; }
+    .card h3 { margin-top:0; }
+    details { border:1px solid var(--line); border-radius:10px; margin:16px 0; padding:0 18px; }
+    summary { cursor:pointer; font-weight:650; padding:14px 0; }
+    details[open] { padding-bottom:16px; }
+    details pre { margin-bottom:0; }
+    .formula { padding:16px; background:#f0f5f3; border-radius:8px; font:14px/1.8 var(--mono); overflow:auto; margin:16px 0; }
+    .controls { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:20px 0; }
+    label { display:block; color:var(--muted); font-size:13px; }
+    select,input[type=number] { display:block; width:100%; margin-top:6px; border:1px solid #b6c8c2; border-radius:6px; background:white; color:var(--ink); padding:9px; font:inherit; }
+    input[type=range] { width:100%; accent-color:var(--accent); }
+    .stat { background:var(--soft); border-radius:10px; padding:18px 22px; }
+    .stat strong { display:block; font-size:30px; letter-spacing:-1px; }
+    .mask-panel { max-width:510px; margin:24px auto; }
+    .mask { display:grid; grid-template-columns:28px repeat(8,minmax(0,1fr)); gap:4px; margin:12px 0; }
+    .mask .cell { aspect-ratio:1; display:grid; place-items:center; border-radius:4px; background:#edf0ef; color:#8b9996; font:11px var(--mono); }
+    .mask .allowed { background:#d7eadf; color:#3f7860; }
+    .mask .selected { background:var(--accent); color:white; }
+    .mask .axis { display:grid; place-items:center; color:var(--muted); font:11px var(--mono); }
+    .legend { display:flex; flex-wrap:wrap; gap:16px; font-size:12px; color:var(--muted); }
+    .dot { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; background:#d7eadf; }
+    .dot.dark { background:var(--accent); } .dot.grey { background:#edf0ef; }
+    .checklist { list-style:none; padding:0; }
+    .checklist li { position:relative; padding-left:26px; }
+    .checklist li::before { content:"□"; color:var(--accent); position:absolute; left:0; font-size:20px; line-height:1.3; }
+    footer { color:var(--muted); font-size:13px; padding:10px 0 0; }
+    @media(max-width:1000px) { .layout { grid-template-columns:180px minmax(0,1fr); gap:24px; padding:28px 24px; } section { padding:24px; } }
+    @media(max-width:760px) { .layout { display:block; padding:20px 16px; } aside { position:static; } nav { display:flex; flex-wrap:wrap; gap:2px; margin:12px 0 24px; } nav a { font-size:12px; padding:6px 9px; } .sidebar-note { display:none; } section { padding:22px 18px; } .cols { grid-template-columns:1fr; } .controls { grid-template-columns:1fr 1fr; } h1 { letter-spacing:-1px; } .flow { grid-template-columns:1fr 70px; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+    @media print { body { background:white; font-size:11pt; } .layout { display:block; padding:0; } aside { display:none; } section { border:0; border-radius:0; padding:12px 0; } details { border:0; } pre { white-space:pre-wrap; color:black; background:#eee; } a { color:inherit; } .controls { display:none; } h2,h3 { break-after:avoid; } .node,.card { break-inside:avoid; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand">tiny<span>LM</span> / с нуля</div>
+      <div class="eyebrow">PyTorch · учебный MVP</div>
+      <nav aria-label="Разделы документа">
+        <a href="#goal">01 · Цель и конфигурация</a>
+        <a href="#architecture">02 · Схема модели</a>
+        <a href="#data">03 · Текст и embeddings</a>
+        <a href="#attention">04 · Causal attention</a>
+        <a href="#block">05 · Transformer block</a>
+        <a href="#head">06 · Logits и loss</a>
+        <a href="#training">07 · Обучение</a>
+        <a href="#generation">08 · Генерация</a>
+        <a href="#roadmap">09 · План реализации</a>
+        <a href="#sources">10 · Источники</a>
+      </nav>
+      <p class="sidebar-note">Один HTML-файл. Без установки библиотек, внешних шрифтов и подключения к интернету для просмотра.</p>
+    </aside>
+    <main>
+      <header>
+        <div class="eyebrow">Архитектура → обучение → генерация</div>
+        <h1>Собрать маленькую<br>языковую модель вручную.</h1>
+        <p class="lead">План пет-проекта: GPT-подобный Transformer примерно на 12 млн параметров. Основные блоки пишешь сам на PyTorch и обучаешь с нуля на коротких историях.</p>
+        <div class="badges"><span class="badge">Decoder-only</span><span class="badge">Next-token prediction</span><span class="badge">Pre-norm</span><span class="badge">Обучение с нуля</span></div>
+      </header>
+
+      <section id="goal">
+        <div class="section-label">01 / ГРАНИЦЫ MVP</div>
+        <h2>Одна задача, полный цикл</h2>
+        <p>Модель получает начало истории и продолжает текст. Например: <code>Once upon a time there was a little fox</code>. Успех — рабочее обучение, снижение ошибки на новых историях и генерация, постепенно осваивающая язык и стиль корпуса.</p>
+        <p>Обучение на продолжение текста само по себе не учит выполнять инструкции или вести диалог. Для этого впоследствии потребуется соответствующий формат данных и отдельный этап обучения.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Параметр</th><th>Базовая конфигурация</th><th>Зачем</th></tr></thead>
+          <tbody>
+            <tr><td>Блоки <code>L</code></td><td>6</td><td>Несколько уровней обработки при небольшом размере модели.</td></tr>
+            <tr><td>Скрытая размерность <code>D</code></td><td>384</td><td>Размер вектора каждой позиции.</td></tr>
+            <tr><td>Головы <code>H</code></td><td>6, размер головы 64</td><td>Несколько параллельных механизмов attention.</td></tr>
+            <tr><td>Контекст <code>T_max</code></td><td>256 токенов</td><td>Максимальная длина входа в одном forward.</td></tr>
+            <tr><td>Словарь <code>V</code></td><td>4096</td><td>Компактный BPE для простых англоязычных историй.</td></tr>
+            <tr><td>FFN</td><td><code>D → 4D → D</code>, GELU</td><td>Нелинейная обработка каждого токена.</td></tr>
+            <tr><td>Позиции / нормализация</td><td>Learned embeddings / LayerNorm</td><td>Простые компоненты для первого рабочего варианта.</td></tr>
+            <tr><td>Dropout</td><td>0 для первого debug-запуска</td><td>Детерминированная отладка; позже можно проверить 0.1 при переобучении.</td></tr>
+          </tbody>
+        </table></div>
+        <h3>Почувствовать размер модели</h3>
+        <p class="small muted">Калькулятор для этой архитектуры: Linear с bias, LayerNorm с weight и bias, общие веса embedding и LM head. Меняет расчёт, а не примеры кода ниже.</p>
+        <div class="controls">
+          <label>Блоки L<select id="layers"><option>2</option><option>4</option><option selected>6</option><option>8</option></select></label>
+          <label>Размерность D<select id="width"><option>128</option><option>256</option><option selected>384</option><option>512</option></select></label>
+          <label>Словарь V<select id="vocab"><option>256</option><option>2048</option><option selected>4096</option><option>8192</option></select></label>
+          <label>Контекст T_max<select id="context"><option>128</option><option selected>256</option><option>512</option><option>1024</option></select></label>
+        </div>
+        <div class="stat" role="status" aria-live="polite"><strong id="params">12 318 720 параметров</strong><span id="weights">47.0 MiB только для весов в FP32</span></div>
+        <p class="small muted" style="margin-top:12px">Полная память обучения больше: нужны градиенты, состояния optimizer и активации. При ручном attention матрица scores имеет размер B × H × T × T: её память растёт квадратично с контекстом.</p>
+        <div class="formula">N = V·D + T_max·D + L·(12D² + 13D) + 2D</div>
+      </section>
+
+      <section id="architecture">
+        <div class="section-label">02 / ОБЩАЯ СХЕМА</div>
+        <h2>Путь одного батча</h2>
+        <p>Обозначения: <code>B</code> — batch size, <code>T</code> — длина входа, <code>D</code> — hidden size, <code>V</code> — размер словаря. Нажми на блок, чтобы перейти к его описанию.</p>
+        <div class="flow" aria-label="Последовательность обработки входа">
+          <a class="node" href="#data"><strong>Текст → tokenizer → token IDs</strong><span>Целочисленные индексы</span></a><div class="shape">[B, T]</div>
+          <div class="arrow" aria-hidden="true">↓</div>
+          <a class="node" href="#data"><strong>TokenEmbedding + PositionEmbedding</strong><span>Вектор токена + вектор его позиции</span></a><div class="shape">[B, T, D]</div>
+          <div class="arrow" aria-hidden="true">↓</div>
+          <a class="node green" href="#block"><strong>TransformerBlock × 6</strong><span>LN → Attention → residual → LN → FFN → residual</span></a><div class="shape">[B, T, D]</div>
+          <div class="arrow" aria-hidden="true">↓</div>
+          <a class="node" href="#block"><strong>Final LayerNorm</strong><span>Нормализация последнего hidden state</span></a><div class="shape">[B, T, D]</div>
+          <div class="arrow" aria-hidden="true">↓</div>
+          <a class="node blue" href="#head"><strong>LM head → logits</strong><span>Linear без bias; общий вес с TokenEmbedding</span></a><div class="shape">[B, T, V]</div>
+          <div class="arrow" aria-hidden="true">↓</div>
+          <a class="node" href="#head"><strong>Обучение: cross-entropy / генерация: sampling</strong><span>Loss по всем позициям / выбор следующего токена</span></a><div class="shape">scalar / [B, 1]</div>
+        </div>
+        <div class="callout"><p>Для примера <code>B=4, T=256, D=384, V=4096</code>: вход <code>[4, 256]</code>, hidden states <code>[4, 256, 384]</code>, logits <code>[4, 256, 4096]</code>. Во время обучения все позиции обрабатываются параллельно; causal mask ограничивает доступный каждой позиции контекст.</p></div>
+      </section>
+
+      <section id="data">
+        <div class="section-label">03 / ПРЕДСТАВЛЕНИЕ ТЕКСТА</div>
+        <h2>Tokenizer и embeddings</h2>
+        <h3>Tokenizer: текст превращается в индексы</h3>
+        <p>Токен — символ, часть слова или целое слово, в зависимости от токенизатора. Tokenizer задаёт обратимое преобразование <code>encode(text) → IDs</code> и <code>decode(IDs) → text</code>. Это отдельный компонент; его правила не обучаются через backward языковой модели.</p>
+        <ul>
+          <li><strong>Для первого smoke test:</strong> посимвольный словарь на маленьком корпусе. Реализуется через два словаря Python; для неизвестных символов нужна явная политика.</li>
+          <li><strong>Для основного запуска:</strong> byte-level BPE примерно на 4096 токенов. Начинает с байтов, затем учит слияния частых соседних единиц. Его можно реализовать отдельно или обучить библиотекой Tokenizers.</li>
+          <li><strong>Специальный токен:</strong> EOS завершает историю. PAD нужен, только если используешь padding; при packing одинаковых окон можно обойтись без него.</li>
+        </ul>
+        <p>Раздели истории на train и validation <strong>до</strong> нарезки на окна. Токенизатор обучай только на train. Добавь EOS между историями, собери последовательность IDs и выбирай окна длиной <code>T+1</code>. При таком простом packing истории разделены EOS, но attention между ними не блокируется.</p>
+        <h3>TokenEmbedding: смысловое представление</h3>
+        <p>Обучаемая таблица <code>[V, D]</code>. По ID выбирается строка из D чисел. Для максимальной прозрачности это просто <code>weight[token_ids]</code>; <code>nn.Embedding</code> делает такое же извлечение с поддержкой autograd.</p>
+        <h3>PositionEmbedding: порядок в последовательности</h3>
+        <p>Обучаемая таблица <code>[T_max, D]</code>. Векторы позиций 0…T−1 складываются с векторами токенов. Attention без позиционной информации не задаёт сам по себе полное представление порядка токенов.</p>
+        <pre><code># token_ids: [B, T], dtype=torch.long
+B, T = token_ids.shape
+assert T &lt;= context_length
+positions = torch.arange(T, device=token_ids.device)
+x = token_embedding(token_ids) + position_embedding(positions)
+# [B, T, D] + [T, D] через broadcasting → [B, T, D]</code></pre>
+      </section>
+
+      <section id="attention">
+        <div class="section-label">04 / СВЯЗИ МЕЖДУ ТОКЕНАМИ</div>
+        <h2>Causal multi-head self-attention</h2>
+        <p>Attention позволяет позиции собрать информацию из доступных токенов. Каждая голова рассчитывает собственные веса связей; это даёт несколько параллельных способов смешивать информацию.</p>
+        <div class="cols">
+          <div class="card"><h3>Q, K и V</h3><p><strong>Query</strong> текущей позиции сравнивается с <strong>Keys</strong> всех доступных позиций. После softmax полученные коэффициенты используются для взвешенной суммы <strong>Values</strong>.</p><p class="small muted">Это обучаемые проекции hidden states; конкретные роли голов заранее не задаются.</p></div>
+          <div class="card"><h3>Масштабирование</h3><p>Скалярные произведения делятся на <code>√d_head</code>. Это сдерживает рост их масштаба при увеличении размерности головы и помогает избежать слишком резкого softmax.</p></div>
+        </div>
+        <div class="formula">scores = Q @ K.transpose(-2, -1) / sqrt(d_head)<br>weights = softmax(scores + causal_mask, dim=-1)<br>output = weights @ V</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Шаг</th><th>Размер тензора</th></tr></thead><tbody>
+            <tr><td>Вход x</td><td><code>[B, T, D]</code></td></tr>
+            <tr><td>Общая проекция QKV</td><td><code>[B, T, 3D]</code></td></tr>
+            <tr><td>Q, K, V после разбиения на головы</td><td>Каждый <code>[B, H, T, d_head]</code>, где <code>D = H × d_head</code></td></tr>
+            <tr><td>Scores и weights</td><td><code>[B, H, T, T]</code>; последняя ось — позиции keys</td></tr>
+            <tr><td>Взвешенные Values</td><td><code>[B, H, T, d_head]</code></td></tr>
+            <tr><td>Объединение голов и выходная проекция</td><td><code>[B, T, D]</code></td></tr>
+          </tbody>
+        </table></div>
+        <h3>Causal mask: позиция видит только прошлое и себя</h3>
+        <p>Строка матрицы соответствует query, столбец — key. Верхний треугольник получает <code>-inf</code> до softmax, поэтому вероятность внимания к будущему равна нулю.</p>
+        <div class="mask-panel">
+          <label for="query-position">Позиция query: <strong id="query-label">4</strong> <span class="small">(нумерация с нуля)</span></label>
+          <input id="query-position" type="range" min="0" max="7" value="4">
+          <div id="mask" class="mask" role="img" aria-label="Causal mask: query 4 видит keys от 0 до 4"></div>
+          <div class="legend"><span><i class="dot dark"></i>выбранная query</span><span><i class="dot"></i>доступно</span><span><i class="dot grey"></i>будущее закрыто</span></div>
+          <p id="mask-caption" class="small muted" aria-live="polite" style="margin-top:12px">Позиция 4 использует keys 0…4. Keys 5…7 закрыты.</p>
+          <noscript><p>Нижнетреугольная маска: строка i допускает только столбцы j ≤ i. Интерактивная схема требует JavaScript.</p></noscript>
+        </div>
+        <details>
+          <summary>Каркас ручной реализации attention</summary>
+          <p class="small muted">Для первого варианта без dropout и KV-cache. Все Linear используют bias. Маска — boolean buffer размера T_max × T_max, зарегистрированный в модуле.</p>
+          <pre><code>import math
+import torch
+from torch import nn
+
+class CausalSelfAttention(nn.Module):
+    def __init__(self, d_model, n_heads, context_length):
+        super().__init__()
+        assert d_model % n_heads == 0
+        self.n_heads = n_heads
+        self.head_dim = d_model // n_heads
+        self.qkv = nn.Linear(d_model, 3 * d_model)
+        self.proj = nn.Linear(d_model, d_model)
+        mask = torch.ones(context_length, context_length,
+                          dtype=torch.bool).tril()
+        self.register_buffer("causal_mask", mask, persistent=False)
+
+    def forward(self, x):
+        B, T, D = x.shape
+        assert T &lt;= self.causal_mask.size(0)
+        q, k, v = self.qkv(x).chunk(3, dim=-1)
+
+        def split_heads(t):
+            return t.reshape(B, T, self.n_heads,
+                             self.head_dim).transpose(1, 2)
+
+        q, k, v = map(split_heads, (q, k, v))
+        scores = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        scores = scores.masked_fill(
+            ~self.causal_mask[:T, :T], float("-inf")
+        )
+        weights = torch.softmax(scores, dim=-1)
+        y = weights @ v
+        y = y.transpose(1, 2).contiguous().view(B, T, D)
+        return self.proj(y)</code></pre>
+        </details>
+        <div class="callout"><p>При первом запуске в FP32 этот код удобно отлаживать. Для mixed precision учитывай численную устойчивость scores и softmax. Позже сравни ручную реализацию с <code>F.scaled_dot_product_attention(..., is_causal=True)</code> при отключённом dropout.</p></div>
+      </section>
+
+      <section id="block">
+        <div class="section-label">05 / ОСНОВНОЙ ПОВТОРЯЮЩИЙСЯ БЛОК</div>
+        <h2>LayerNorm → Attention → FFN</h2>
+        <p>Блок сохраняет размер <code>[B, T, D]</code>. Attention смешивает информацию между позициями; FFN применяет нелинейное преобразование независимо к каждой позиции, используя общие веса.</p>
+        <pre><code>x = x + attention(norm1(x))
+x = x + ffn(norm2(x))</code></pre>
+        <h3>LayerNorm</h3>
+        <p>Среднее и дисперсия вычисляются по последней оси D отдельно для каждой позиции и каждого примера. Нормализация не смешивает токены или элементы батча. Затем применяются обучаемые масштаб γ и сдвиг β, оба размера <code>[D]</code>.</p>
+        <div class="formula">μ = mean(x, dim=-1, keepdim=True)<br>σ² = mean((x − μ)², dim=-1, keepdim=True)<br>LN(x) = γ · (x − μ) / sqrt(σ² + ε) + β</div>
+        <p class="small muted">При реализации через <code>torch.var</code> используй <code>correction=0</code>, чтобы соответствовать формуле выше. Начальные γ = 1, β = 0; ε, например, 1e-5.</p>
+        <h3>Residual connection</h3>
+        <p>Результат каждой ветки добавляется к её входу. Так блок учит поправку к текущему представлению, а градиент получает прямой путь через сложение. Для сложения размерность выхода ветки должна совпадать с размерностью x.</p>
+        <h3>Feed-forward network</h3>
+        <p>Первая проекция расширяет D до 4D, GELU добавляет нелинейность, вторая возвращает размер D. В базовом варианте это <code>384 → 1536 → 384</code>.</p>
+        <pre><code>ffn = nn.Sequential(
+    nn.Linear(d_model, 4 * d_model),
+    nn.GELU(),
+    nn.Linear(4 * d_model, d_model),
+)</code></pre>
+        <p><strong>Почему pre-norm:</strong> нормализуем вход каждой ветки до её преобразования. Это удобный старт для обучения Transformer. После всех L блоков добавляем ещё одну LayerNorm перед LM head.</p>
+        <details><summary>Что действительно писать вручную</summary>
+          <p>Собери свои <code>CausalSelfAttention</code>, <code>FeedForward</code>, <code>TransformerBlock</code> и <code>TinyLM</code>. Для дополнительной практики — собственные LayerNorm и Embedding.</p>
+          <p>Автоматическое дифференцирование, матричные операции, <code>nn.Linear</code>, <code>F.cross_entropy</code> и <code>torch.optim.AdamW</code> можно оставить PyTorch. Готовые <code>nn.Transformer</code> и <code>nn.MultiheadAttention</code> здесь не нужны.</p>
+        </details>
+      </section>
+
+      <section id="head">
+        <div class="section-label">06 / ЦЕЛЬ ОБУЧЕНИЯ</div>
+        <h2>Logits → следующий токен</h2>
+        <p>LM head проецирует hidden state каждой позиции из D в V. Logits — произвольные оценки для токенов словаря; это ещё не вероятности. Для loss передавай их непосредственно в cross-entropy: она уже включает log-softmax.</p>
+        <h3>Weight tying</h3>
+        <p>Таблица embedding имеет размер <code>[V, D]</code>, как и вес <code>Linear(D, V)</code>. Можно использовать один и тот же Parameter: входные и выходные представления тогда учатся совместно, а число параметров уменьшается на V·D.</p>
+        <pre><code>self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
+self.lm_head.weight = self.token_embedding.weight
+# Назначение выполняется в __init__, до создания optimizer.</code></pre>
+        <h3>Сдвиг target на одну позицию</h3>
+        <div class="formula">Исходное окно: [A, B, C, D, EOS]<br>Вход x:        [A, B, C, D]<br>Target y:      [B, C, D, EOS]</div>
+        <p>Logits на позиции A должны предсказать B; logits на позиции B — C. Target получается из реальных данных, а модель благодаря маске не видит будущие токены.</p>
+        <pre><code># batch_tokens: [B, T+1]
+x = batch_tokens[:, :-1]
+y = batch_tokens[:, 1:]
+logits = model(x)                       # [B, T, V]
+loss = torch.nn.functional.cross_entropy(
+    logits.reshape(-1, vocab_size),
+    y.reshape(-1),
+)</code></pre>
+        <p class="small muted">При padding исключи PAD-позиции из loss через <code>ignore_index</code> и корректно учитывай padding в attention. Для первого MVP проще использовать окна одинаковой длины без padding.</p>
+      </section>
+
+      <section id="training">
+        <div class="section-label">07 / ПРАКТИЧЕСКИЙ TRAINING LOOP</div>
+        <h2>Сначала доказать, что модель учится</h2>
+        <p>Начни с маленькой версии: 2 блока, D=128, 4 головы, контекст 64 и посимвольный tokenizer. Переобучи один фиксированный батч. Это быстрый способ обнаружить ошибки в маске, targets и gradient flow до большого запуска.</p>
+        <h3>Основной корпус</h3>
+        <p><a href="https://huggingface.co/datasets/roneneldan/TinyStories">TinyStories</a> содержит синтетические короткие англоязычные истории с простым словарём. Для первого эксперимента можно выбрать подмножество примерно на 10–30 млн токенов после BPE. Это ориентир для масштаба эксперимента, а не гарантия связной генерации.</p>
+        <p>Отложи отдельные истории для validation, убери точные дубликаты между split. Сохрани tokenizer и уже токенизированные данные, чтобы повторные запуски использовали одинаковое представление.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Настройка</th><th>Стартовый выбор</th></tr></thead><tbody>
+            <tr><td>Optimizer</td><td>AdamW, LR 3e-4, betas (0.9, 0.95), weight decay 0.01.</td></tr>
+            <tr><td>Decay-группы</td><td>Decay для матриц весов; bias и параметры LayerNorm — без decay. Общий embedding/head Parameter включается один раз.</td></tr>
+            <tr><td>Scheduler</td><td>Warmup первые ~5% updates, затем cosine decay до 10% исходного LR.</td></tr>
+            <tr><td>Gradient clipping</td><td>Максимальная норма 1.0 после backward, до optimizer.step.</td></tr>
+            <tr><td>Batch</td><td>Начать с 4–8 окон по 256 токенов, затем подобрать по памяти. При необходимости добавить accumulation.</td></tr>
+            <tr><td>Точность</td><td>FP32 для отладки; затем BF16 autocast, если оборудование поддерживает. FP16 требует подходящего GradScaler.</td></tr>
+            <tr><td>Validation</td><td>Через фиксированное число optimizer updates; model.eval() и inference_mode().</td></tr>
+          </tbody>
+        </table></div>
+        <p class="small muted" style="margin-top:14px">Гиперпараметры выше — исходная точка. Скорость и время обучения зависят от GPU, длины контекста и реализации attention; их стоит измерить на коротком запуске.</p>
+        <details><summary>Минимальный шаг обучения в FP32</summary>
+          <pre><code>model.train()
+optimizer.zero_grad(set_to_none=True)
+logits = model(x)
+loss = torch.nn.functional.cross_entropy(
+    logits.reshape(-1, vocab_size), y.reshape(-1)
+)
+loss.backward()
+torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+optimizer.step()
+# Если scheduler настроен на optimizer updates:
+scheduler.step()</code></pre>
+        </details>
+        <h3>Что сохранять и смотреть</h3>
+        <ul>
+          <li><strong>Train и validation loss.</strong> Рост разрыва между ними помогает заметить переобучение. Perplexity = exp(loss), если loss измерен натуральным логарифмом; сравнивай её при одинаковой токенизации и выборке.</li>
+          <li><strong>Tokens/sec и обработанные токены.</strong> Количество updates без размера батча и контекста плохо описывает объём обучения.</li>
+          <li><strong>Фиксированные prompts.</strong> Сохраняй генерации с одинаковыми sampling-настройками через равные интервалы обучения.</li>
+          <li><strong>Checkpoint.</strong> Веса, optimizer, scheduler, step, конфигурация и tokenizer. Для точного возобновления также нужны RNG states, положение sampler и GradScaler при FP16.</li>
+        </ul>
+        <div class="callout warm"><p>При gradient accumulation дели loss на число microbatches. Clipping, optimizer.step(), scheduler.step() и zero_grad() выполняются один раз на полный накопленный update.</p></div>
+      </section>
+
+      <section id="generation">
+        <div class="section-label">08 / АВТОРЕГРЕССИВНОЕ ПРОДОЛЖЕНИЕ</div>
+        <h2>Один новый токен за шаг</h2>
+        <ol>
+          <li>Закодируй непустой prompt и вызови модель для его token IDs.</li>
+          <li>Возьми <code>logits[:, -1, :]</code> — предсказание после последней позиции.</li>
+          <li>Раздели logits на положительную temperature, при необходимости оставь top-k.</li>
+          <li>Примени softmax, выбери токен через multinomial и добавь его к входу.</li>
+          <li>Повторяй до EOS или max_new_tokens. Decode выполняется тем же tokenizer.</li>
+        </ol>
+        <p><strong>Temperature</strong> ниже 1 обычно делает выбор более концентрированным; выше 1 — более разнообразным. <strong>Top-k</strong> ограничивает sampling k наиболее высокими logits. Для отдельного детерминированного режима используй argmax.</p>
+        <details><summary>Каркас генерации для одного prompt</summary>
+          <p class="small muted">Предполагает batch size 1, непустой вход и положительную temperature. Здесь нет KV-cache: весь текущий контекст пересчитывается на каждом шаге.</p>
+          <pre><code>@torch.inference_mode()
+def generate(model, ids, context_length, eos_id,
+             max_new_tokens=100, temperature=0.8, top_k=40):
+    assert ids.ndim == 2 and ids.size(0) == 1 and ids.size(1) &gt; 0
+    assert temperature &gt; 0 and top_k &gt; 0
+    model.eval()
+    for _ in range(max_new_tokens):
+        x = ids[:, -context_length:]
+        logits = model(x)[:, -1, :] / temperature
+        k = min(top_k, logits.size(-1))
+        values, indices = torch.topk(logits, k, dim=-1)
+        filtered = torch.full_like(logits, float("-inf"))
+        filtered.scatter_(-1, indices, values)
+        probs = torch.softmax(filtered, dim=-1)
+        next_id = torch.multinomial(probs, num_samples=1)
+        ids = torch.cat((ids, next_id), dim=1)
+        if next_id.item() == eos_id:
+            break
+    return ids</code></pre>
+        </details>
+        <div class="callout"><p>При превышении T_max этот вариант берёт последние T_max токенов и заново нумерует позиции с нуля. Это простая стратегия для MVP; она теряет ранний контекст и меняет абсолютные позиции. При обучении на случайных окнах такое поведение естественно, но длинная история может терять связность.</p></div>
+      </section>
+
+      <section id="roadmap">
+        <div class="section-label">09 / ПОРЯДОК РЕАЛИЗАЦИИ</div>
+        <h2>От первого тензора до своего checkpoint</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Этап</th><th>Что сделать</th><th>Как проверить</th></tr></thead><tbody>
+            <tr><td>1. Данные</td><td>Character tokenizer, train/val split, окна x/y.</td><td>decode(encode(text)) восстанавливает поддерживаемый текст; y сдвинут на один токен.</td></tr>
+            <tr><td>2. Attention</td><td>QKV, головы, масштабирование, causal mask, выходная проекция.</td><td>Правильные shapes; суммы attention weights по последней оси ≈ 1.</td></tr>
+            <tr><td>3. Блок и модель</td><td>LayerNorm, FFN, residual, embeddings, LM head.</td><td>Forward даёт [B,T,V], backward — конечные gradients.</td></tr>
+            <tr><td>4. Маленькое обучение</td><td>Переобучить фиксированный батч без dropout.</td><td>Loss резко падает; модель воспроизводит последовательность.</td></tr>
+            <tr><td>5. Основной запуск</td><td>BPE, TinyStories subset, 6 × 384, validation, checkpoint.</td><td>Validation loss снижается; checkpoint корректно загружается.</td></tr>
+            <tr><td>6. Генерация</td><td>Temperature, top-k, EOS, ограничение контекста.</td><td>Продолжения на фиксированных prompts и корректная остановка.</td></tr>
+          </tbody>
+        </table></div>
+        <h3>Предлагаемая структура отдельного проекта</h3>
+        <pre><code>tiny_lm/
+├── config.py           # dataclass с размерами и train-настройками
+├── tokenizer.py        # encode/decode, обучение и сохранение
+├── data.py             # split, packing, чтение token windows
+├── model.py            # embeddings, attention, FFN, block, TinyLM
+├── train.py            # optimizer, loop, validation, checkpoint
+├── generate.py         # загрузка модели и sampling
+└── checks.py           # точечные проверки корректности</code></pre>
+        <h3>Критерии готовности</h3>
+        <ul class="checklist">
+          <li>Будущие токены не влияют на logits более ранних позиций: меняем суффикс входа при model.eval() и сравниваем logits общего префикса.</li>
+          <li>LayerNorm совпадает с nn.LayerNorm при одинаковых параметрах и ε; attention близок к SDPA при dropout=0.</li>
+          <li>Модель переобучается на одном батче; loss и gradients конечны.</li>
+          <li>Validation использует отдельные истории и не обновляет веса.</li>
+          <li>Сохранённая и загруженная модель даёт одинаковые logits в eval; обучение возобновляется с состояниями optimizer и scheduler.</li>
+          <li>Генератор работает с коротким и длинным prompt, соблюдает EOS и max_new_tokens.</li>
+        </ul>
+        <h3>Следующие эксперименты — по одному изменению</h3>
+        <p>После базовой модели попробуй learned positions → RoPE, LayerNorm → RMSNorm, GELU FFN → SwiGLU. KV-cache ускоряет генерацию, а SDPA — attention. Для архитектурных сравнений сохраняй tokenizer, данные и бюджет обработанных токенов; учитывай число параметров при изменении FFN.</p>
+      </section>
+
+      <section id="sources">
+        <div class="section-label">10 / ДОКУМЕНТАЦИЯ</div>
+        <h2>Источники для реализации</h2>
+        <ul>
+          <li><a href="https://huggingface.co/datasets/roneneldan/TinyStories">TinyStories — карточка датасета</a>: состав корпуса, train/validation и файлы.</li>
+          <li><a href="https://arxiv.org/abs/2305.07759">TinyStories: How Small Can Language Models Be and Still Speak Coherent English?</a>: исследование небольших моделей на простых историях.</li>
+          <li><a href="https://huggingface.co/docs/tokenizers/quicktour">Hugging Face Tokenizers — Quicktour</a>: создание, обучение и сохранение BPE.</li>
+          <li><a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html">PyTorch — scaled_dot_product_attention</a>: формула attention и API для сравнения с ручной реализацией.</li>
+        </ul>
+        <p class="small muted">Конфигурация и план обучения в этом документе — предлагаемый учебный baseline. Число параметров соответствует показанным блокам; качество и скорость нужно измерять в собственном эксперименте.</p>
+      </section>
+      <footer>Учебный план MVP · PyTorch · Документ содержит каркасы отдельных блоков, а не готовую библиотеку обучения.</footer>
+    </main>
+  </div>
+  <script>
+    (() => {
+      const get = id => document.getElementById(id);
+      const format = new Intl.NumberFormat('ru-RU');
+      function updateParameters() {
+        const L = Number(get('layers').value);
+        const D = Number(get('width').value);
+        const V = Number(get('vocab').value);
+        const T = Number(get('context').value);
+        const count = V * D + T * D + L * (12 * D * D + 13 * D) + 2 * D;
+        get('params').textContent = `${format.format(count)} параметров`;
+        get('weights').textContent = `${(count * 4 / 1024 ** 2).toFixed(1)} MiB только для весов в FP32`;
+      }
+      ['layers', 'width', 'vocab', 'context'].forEach(id => get(id).addEventListener('change', updateParameters));
+      updateParameters();
+      function updateMask() {
+        const selected = Number(get('query-position').value);
+        const mask = get('mask');
+        mask.replaceChildren();
+        function add(text, className) {
+          const cell = document.createElement('span');
+          cell.className = className;
+          cell.textContent = text;
+          cell.setAttribute('aria-hidden', 'true');
+          mask.appendChild(cell);
+        }
+        add('Q/K', 'axis');
+        for (let k = 0; k < 8; k++) add(k, 'axis');
+        for (let q = 0; q < 8; q++) {
+          add(q, 'axis');
+          for (let k = 0; k < 8; k++) {
+            const allowed = k <= q;
+            add(allowed ? '✓' : '×', `cell${allowed ? ' allowed' : ''}${allowed && q === selected ? ' selected' : ''}`);
+          }
+        }
+        get('query-label').textContent = selected;
+        const accessible = selected === 0 ? '0' : `0…${selected}`;
+        const blocked = selected === 7 ? 'Будущих позиций в этом окне нет.' : `Keys ${selected + 1}${selected < 6 ? '…7' : ''} закрыты.`;
+        const caption = `Позиция ${selected} использует keys ${accessible}. ${blocked}`;
+        get('mask-caption').textContent = caption;
+        mask.setAttribute('aria-label', caption);
+      }
+      get('query-position').addEventListener('input', updateMask);
+      updateMask();
+    })();
+  </script>
+</body>
+</html>
